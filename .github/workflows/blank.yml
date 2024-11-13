@@ -1,0 +1,44 @@
+name: Update README
+
+on:
+  push:
+    branches:
+      - '!main'
+    paths:
+      - 'docs/**/*.md'
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Update README.md
+      env:
+        BRANCH_NAME: ${{ github.ref_name }}
+        RFD_ROBOT_TOKEN: ${{ secrets.RFD_ROBOT_TOKEN }}
+      run: |
+        RFD_FILE=$(find docs -maxdepth 1 -name '*.md' | head -n 1)
+        if [ -z "$RFD_FILE" ]; then echo "No placeholder found"; exit 1; fi
+        TITLE=$(grep -m 1 '^# ' "$RFD_FILE" |  sed 's/# //')
+        LABELS=$(grep -m 1 '^labels:' "$RFD_FILE")
+        
+        git config --global user.email "rfd_bot@xefi.fr"
+        git config --global user.name "RFD Bot"
+        
+        if grep -q "| ${BRANCH_NAME} |" README.md; then
+            sed -i "s/| ${BRANCH_NAME} |.*|/| ${BRANCH_NAME} | ${TITLE} | ${LABELS} |/" README.md
+        else
+            echo "| ${BRANCH_NAME} | ${TITLE} | ${LABELS} |" >> README.md
+        fi
+        
+        if ! git diff --exit-code; then
+            git add README.md
+            git commit -m "Update README.md for branch ${BRANCH_NAME}"
+            git push origin main
+        else
+            echo "No changes to README.md needed"
+        fi
